@@ -1,7 +1,7 @@
 // Public on-chain infrastructure for Robinhood Chain (4663), as documented
 // by the respective operators. These are chain facts, not secrets. The real
 // backend should re-verify each one (eth_getCode + factory() checks) at boot.
-// The Kerf executor and $KERF token addresses come from env once deployed.
+// The $KERF token address comes from env once launched.
 
 export const REGISTRY = {
   chainId: 4663,
@@ -18,5 +18,6 @@ export const REGISTRY = {
   v4PoolManager: "0x8366a39CC670B4001A1121B8F6A443A643e40951",
   chainlinkEthUsd: "0x78F3556b67E17Df817D51Ef5a990cDaF09E8d3A9",
   chainlinkUsdgUsd: "0x61B7e5650328764B076A108EFF5fa7282a1B9aD2",
+  kerfExecutor: "0x89bdac70A0296dbFf611b6547d50cd29F020BC40", // deployed 2026-09-24, verified on Blockscout
   v3FeeTiers: [100, 500, 3000, 10000],
 } as const;

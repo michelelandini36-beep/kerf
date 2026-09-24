@@ -2,6 +2,8 @@
 
 Atomic 2–4 hop Uniswap V2/V3 loops on Robinhood Chain (4663), funded by a flash swap on the first pool. The caller supplies no tokens and grants no allowance; profit is the measured increase of the contract's settlement balance, paid to the caller in the same transaction.
 
+**Deployed:** [`0x89bdac70A0296dbFf611b6547d50cd29F020BC40`](https://robinhoodchain.blockscout.com/address/0x89bdac70A0296dbFf611b6547d50cd29F020BC40) on Robinhood Chain — source verified (exact match), owner/fee recipient `0x31410291cC4a4b2077bFEAAe05B3518ce929dE5A`, protocol fee 0 %, 196 tokens allowed.
+
 **Not independently audited.**
 
 ## Guarantees enforced on-chain

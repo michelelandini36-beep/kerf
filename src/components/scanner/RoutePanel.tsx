@@ -17,7 +17,7 @@ export const VERDICT: Record<string, { tag: string; title: string; text: string 
   eligible: { tag: "go", title: "Eligible estimate", text: "Positive after pool fees, price impact, protocol fee and gas at this block." },
   "no-profit": { tag: "off", title: "Negative estimated result", text: "After pool fees and price impact the loop hands back less than it borrowed at this block." },
   "gas-exceeds": { tag: "warn", title: "Gas exceeds profit", text: "The loop is positive before gas, but gas costs more than it earns." },
-  incomplete: { tag: "warn", title: "Net incomplete", text: "Gas could not be valued with a credible same-block rate, so the net is unknown." },
+  incomplete: { tag: "warn", title: "Incomplete", text: "The on-chain quoter could not fill a hop at this size, or gas could not be valued with a credible same-block rate." },
 };
 
 const PHASES: TxPhase[] = ["resimulating", "awaiting-wallet", "submitted", "pending", "confirmed"];
@@ -136,7 +136,12 @@ export function RoutePanel({ routeId, initialAmount, initialQuote, onClose }: { 
     if (!sim || !wallet.address || !wallet.kind) return;
     cancel.current = { cancelled: false };
     setTx([]);
-    await submitCycle(sim.res, { address: wallet.address, kind: wallet.kind }, (u) => setTx((prev) => [...(prev ?? []), u]), cancel.current);
+    const resimulate = () =>
+      api<QuoteResponse>("/api/quote", {
+        method: "POST",
+        body: JSON.stringify({ routeId, amountIn: amountNum, simulate: true, from: wallet.address, minProfit, deadlineSec: deadline }),
+      });
+    await submitCycle(sim.res, { address: wallet.address, kind: wallet.kind }, (u) => setTx((prev) => [...(prev ?? []), u]), cancel.current, resimulate);
   };
 
   const last = tx?.[tx.length - 1];
@@ -301,6 +306,7 @@ export function RoutePanel({ routeId, initialAmount, initialQuote, onClose }: { 
                 {review && sim && !tx && (
                   <div className="banner go" style={{ marginTop: 14 }}>
                     <strong>Confirm this cut</strong>
+                    <p>{wallet.kind === "injected" && sim.res.simulation?.live ? "Your wallet will be asked to sign a real transaction on Robinhood Chain. It costs gas even if it reverts." : "Demo: nothing will be signed or sent."}</p>
                     <dl className="kv">
                       <dt>Route</dt><dd>{quote.hops.length} hops · {sym}</dd>
                       <dt>Flash amount</dt><dd>{num(amountNum, dp(sym))} {sym}</dd>

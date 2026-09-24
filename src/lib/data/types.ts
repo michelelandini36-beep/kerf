@@ -135,6 +135,10 @@ export interface Simulation {
   minProfit: number;
   deadlineAt: number; // unix seconds
   calldata: `0x${string}`;
+  /** Contract the calldata is for; null in demo mode. */
+  to: Address | null;
+  /** true when this simulation ran against the real chain and may be signed. */
+  live: boolean;
 }
 
 export interface QuoteResponse {

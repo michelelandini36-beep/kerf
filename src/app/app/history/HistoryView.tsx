@@ -38,7 +38,11 @@ export function HistoryView() {
     setLocal(loadLocal());
   }, []);
 
-  const localRows = useMemo(() => (page === 1 ? local.filter((l) => !caller || l.caller.toLowerCase() === caller.toLowerCase()) : []), [local, page, caller]);
+  const localRows = useMemo(() => {
+    if (page !== 1) return [];
+    const indexed = new Set((data?.rows ?? []).map((r) => r.txHash.toLowerCase()));
+    return local.filter((l) => (!caller || l.caller.toLowerCase() === caller.toLowerCase()) && !indexed.has(l.txHash.toLowerCase()));
+  }, [local, page, caller, data]);
   const rows = [...localRows, ...(data?.rows ?? [])];
 
   const exportCsv = async () => {

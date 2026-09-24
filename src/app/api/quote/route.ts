@@ -3,6 +3,7 @@ import { provider } from "@/lib/data";
 import { respond } from "@/lib/data/respond";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as Partial<QuoteRequest> | null;

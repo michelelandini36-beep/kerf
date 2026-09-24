@@ -471,6 +471,8 @@ export const mockProvider: DataProvider = {
         minProfit,
         deadlineAt: Math.floor(now / 1000) + deadlineSec,
         calldata: fakeHex("calldata:" + q.id + ":" + req.amountIn + ":" + minProfit + ":" + deadlineSec, 196),
+        to: null,
+        live: false,
       };
     }
     return { quote: q, simulation };

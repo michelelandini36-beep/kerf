@@ -25,11 +25,13 @@ Import the repository (root directory = repo root). Add the variables from `.env
 | `src/app/app` | The bench: scanner, pools, history, status (terminal header, wallet) |
 | `src/app/api/*` | The public developer API; each handler calls `provider` |
 | `src/lib/data/types.ts` | Data contracts shared by UI and backend |
-| `src/lib/data/index.ts` | **The switch**: `KERF_DATA_SOURCE=mock` or `http` |
+| `src/lib/data/index.ts` | **The switch**: `KERF_DATA_SOURCE=chain` (default, reads Robinhood Chain), `mock` or `http` |
+| `src/lib/data/chain/` | Live provider: pool state in one multicall per block, QuoterV2 per hop, exact-call simulation on the executor, CycleExecuted history |
+| `src/config/pools.json` | Canonical pool snapshot — refresh with `npm run snapshot:pools` |
 | `src/lib/data/mock.ts` | Deterministic demo chain (prices drift every 15 s, one dislocation some minutes) |
 | `src/lib/data/http.ts` | Live adapter: forwards to `KERF_API_BASE_URL`, adds `KERF_API_KEY` |
 | `src/lib/wallet.tsx` | Wallet state: real EIP-1193 browser wallet or demo wallet |
-| `src/lib/execution.ts` | Transaction lifecycle — **demo**, replace `submitCycle` to go live |
+| `src/lib/execution.ts` | Transaction lifecycle: real `eth_sendTransaction` with a browser wallet, timers with the demo wallet |
 | `src/config/registry.ts` | Public chain addresses (Uniswap, USDG, WETH, Chainlink…) |
 | `CHECKLIST.md` | Feature checklist derived from the reference site |
 | `contracts/` | `KerfExecutor` (Foundry): source, fork tests, deploy script — see `contracts/README.md` |

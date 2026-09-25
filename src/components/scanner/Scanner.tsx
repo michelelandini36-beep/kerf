@@ -1,12 +1,13 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useApi, useNow } from "@/lib/api";
 import type { MarketsSnapshot, RouteQuote, RoutesSnapshot, Settlement } from "@/lib/data/types";
 import { ago, blockNo, bps, num, signed } from "@/lib/format";
 import { RoutePath } from "../RoutePath";
 import { RoutePanel, VERDICT } from "./RoutePanel";
+import { useEligibleAlert } from "./useEligibleAlert";
 
 type SortKey = "net" | "size" | "spread" | "impact" | "result" | "gas";
 const SORTS: { k: SortKey; label: string; get: (q: RouteQuote) => number }[] = [
@@ -35,7 +36,12 @@ export function Scanner() {
   const [sort, setSort] = useState<{ k: SortKey; dir: 1 | -1 }>({ k: "net", dir: -1 });
 
   const routesUrl = `/api/routes?settlement=${settlement}&maxHops=${maxHops}${asset ? `&token=${asset}` : ""}`;
-  const { data, error, loading, readAt, refresh } = useApi<RoutesSnapshot>(routesUrl, 30_000);
+  const [fast, setFast] = useState(false);
+  const { data, error, loading, readAt, refresh } = useApi<RoutesSnapshot>(routesUrl, fast ? 15_000 : 30_000);
+  const alert = useEligibleAlert(data);
+  useEffect(() => {
+    setFast(alert.on);
+  }, [alert.on]);
   const { data: markets } = useApi<MarketsSnapshot>("/api/markets");
 
   const selected = params.get("r");
@@ -95,7 +101,21 @@ export function Scanner() {
             quoted on-chain at a size scaled to the shallowest pool. Each row is an estimate at one block — open it to re-quote and rehearse the exact call.
           </p>
         </div>
-        <button type="button" className="btn" onClick={refresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh scan"}</button>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <button type="button" className={`btn ${alert.on ? "btn-solid" : ""}`} aria-pressed={alert.on} onClick={alert.toggle} title="Browser notification and a chime when a loop clears every cost">
+            {alert.on ? "● Alerts on" : "Notify me"}
+          </button>
+          <button type="button" className="btn" onClick={refresh} disabled={loading}>{loading ? "Refreshing…" : "Refresh scan"}</button>
+          {alert.on && (
+            <span className="faint" style={{ fontSize: 12, flexBasis: "100%", textAlign: "right" }}>
+              {alert.permission === "granted"
+                ? "Keep this tab open — you get a notification and a chime when a loop is eligible."
+                : alert.permission === "denied"
+                  ? "Notifications are blocked for this site: you will only hear the chime and see the tab title."
+                  : "Keep this tab open — the tab title and a chime flag eligible loops."}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="kpis">

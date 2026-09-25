@@ -2,6 +2,7 @@
 import { decodeEventLog, parseAbi, type Hex } from "viem";
 import { fakeHex } from "./data/catalog";
 import type { Execution, QuoteResponse } from "./data/types";
+import { getActiveProvider } from "./wallet";
 
 // Transaction lifecycle for "Review and execute".
 //  - Browser wallet + live simulation: re-simulate on the server, send exactly that
@@ -31,14 +32,14 @@ export async function submitCycle(
   signal: { cancelled: boolean },
   resimulate: () => Promise<QuoteResponse>,
 ) {
-  if (wallet.kind === "injected" && res.simulation?.live && res.simulation.to && typeof window !== "undefined" && window.ethereum) {
+  if (wallet.kind === "injected" && res.simulation?.live && res.simulation.to && getActiveProvider()) {
     return submitLive(wallet.address, onUpdate, resimulate);
   }
   return submitDemo(res, wallet, onUpdate, signal);
 }
 
 async function submitLive(from: string, onUpdate: (u: TxUpdate) => void, resimulate: () => Promise<QuoteResponse>) {
-  const eth = window.ethereum!;
+  const eth = getActiveProvider()!;
   onUpdate({ phase: "resimulating", detail: "Re-quoting at the newest block and re-running the exact call on the server." });
   let fresh: QuoteResponse;
   try {

@@ -33,7 +33,7 @@ export function WalletModal() {
                 </a>
               </dd>
               <dt>Connector</dt>
-              <dd>{w.kind === "demo" ? "Demo wallet" : "Browser wallet"}</dd>
+              <dd>{w.kind === "demo" ? "Demo wallet" : (w.walletName ?? "Browser wallet")}</dd>
               <dt>Network</dt>
               <dd className={wrongChain ? "sig" : ""}>{w.chainId === BRAND.chainId ? `${BRAND.chainName} (${BRAND.chainId})` : `chain ${w.chainId ?? "?"}`}</dd>
               <dt>Gas balance</dt>
@@ -50,11 +50,17 @@ export function WalletModal() {
           </div>
         ) : (
           <div>
-            <button type="button" className="opt" disabled={!w.hasInjected} onClick={() => w.connect("injected")}>
-              <strong>Browser wallet</strong>
-              <span className="label">{w.hasInjected ? "detected" : "not found"}</span>
-              <small>Any EIP-1193 wallet in this browser. Your account, network and ETH balance are read from it.</small>
-            </button>
+            {w.wallets.map((wl) => (
+              <button key={wl.id} type="button" className="opt" onClick={() => w.connect("injected", wl.id)} disabled={w.status === "connecting"}>
+                <strong style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {wl.icon && <img src={wl.icon} alt="" width={24} height={24} style={{ borderRadius: 6 }} />}
+                  {wl.name}
+                </strong>
+                <span className="label">{w.status === "connecting" ? "check your wallet" : "detected"}</span>
+                <small>Your account, network and ETH balance are read from it. Nothing is signed until you execute.</small>
+              </button>
+            ))}
             {w.allowDemo && (
               <button type="button" className="opt" onClick={() => w.connect("demo")}>
                 <strong>Demo wallet</strong>

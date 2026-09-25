@@ -54,7 +54,8 @@ export function RoutePanel({ routeId, initialAmount, initialQuote, onClose }: { 
   const gasFloor = quote?.gasSettlement ?? 0;
   const floorNum = floor.trim() === "" ? gasFloor : Number(floor);
   const minProfit = quote ? Math.max(floorNum, (quote.netResult ?? 0) > 0 ? (quote.netResult ?? 0) * tolerance : 0) : 0;
-  const key = JSON.stringify([routeId, amountNum, tolerance, deadline, floorNum, wallet.address]);
+  // what the user chose — not values derived from the latest quote (gas moves every block)
+  const key = JSON.stringify([routeId, amountNum, tolerance, deadline, floor.trim(), wallet.address]);
 
   const requote = useCallback(
     async (amt?: number) => {

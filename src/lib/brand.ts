@@ -2,7 +2,7 @@ export const BRAND = {
   name: "Kerf",
   token: "KERF",
   tagline: "Measure the gap. Cut it clean.",
-  xHandle: process.env.NEXT_PUBLIC_X_HANDLE || "kerfbench",
+  xHandle: process.env.NEXT_PUBLIC_X_HANDLE || "Kerfworld",
   explorer: process.env.NEXT_PUBLIC_EXPLORER_URL || "https://robinhoodchain.blockscout.com",
   chainName: "Robinhood Chain",
   chainId: Number(process.env.NEXT_PUBLIC_CHAIN_ID || 4663),

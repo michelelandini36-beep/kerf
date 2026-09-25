@@ -30,6 +30,13 @@ export const TOKENS: Asset[] = (tokensJson as { symbol: string; name: string; ad
 }));
 const byAddr = new Map(TOKENS.map((t) => [t.address.toLowerCase(), t]));
 export const token = (a: string) => byAddr.get(a.toLowerCase());
+/** Tokens found at runtime in the issuer registry (and verified on-chain) join the static list. */
+export function registerToken(t: Asset) {
+  if (byAddr.has(t.address.toLowerCase())) return false;
+  byAddr.set(t.address.toLowerCase(), t);
+  TOKENS.push(t);
+  return true;
+}
 export const USDG = token(REGISTRY.usdg)!;
 export const WETH = token(REGISTRY.weth)!;
 

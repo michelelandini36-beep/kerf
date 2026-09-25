@@ -88,8 +88,9 @@ export default function Docs() {
           </p>
           <p>
             <strong>Pools.</strong> For every stock token × {"{USDG, WETH}"} × fee tier (0.01, 0.05, 0.30, 1 %) we call <code>factory.getPool</code>, plus{" "}
-            <code>factory.getPair</code> for V2 and the WETH/USDG connectors. Asking the canonical factory <em>is</em> the membership proof. Stock/stock pools are
-            found with a bounded <code>PoolCreated</code> scan and re-checked with <code>getPool</code> at run time.
+            <code>factory.getPair</code> for V2 and the WETH/USDG connectors. Asking the canonical factory <em>is</em> the membership proof. Stock/stock pools come
+            from a committed snapshot, each confirmed by the factory. Tokens and pools are re-read from the issuer registry and the factories every six
+            hours, so new listings appear without a redeploy — and a new token must first prove it is a beacon proxy of the issuer beacon.
           </p>
           <p>
             <strong>Depth probes.</strong> A V3 position one tick wide can report huge liquidity and fill almost nothing. Every pool above the dust floor (25 USDG
@@ -108,8 +109,8 @@ export default function Docs() {
             <li>Spot prices (V3 from <code>sqrtPriceX96</code>, V2 from reserves) are indicative: before impact, not an exchange price, not an oracle.</li>
             <li>The raw spread — dearest minus cheapest verified pool of an asset — is a signal and never a result.</li>
             <li>
-              Candidate loops of 2–4 distinct pools are ranked by spot edge; the best 48 are quoted hop by hop with QuoterV2 (<A a={R.quoterV2} />), each quote an
-              isolated, gas-capped <code>eth_call</code>, at 5, 15, 40, 100 and 250 % of the loop’s shallowest depth. V2 hops use constant-product maths on same-block reserves.
+              Candidate loops of 2–4 distinct pools are ranked by spot edge; the best 48 are quoted hop by hop with QuoterV2 (<A a={R.quoterV2} />), batched in
+              gas-capped <code>eth_call</code>s, at 5, 15, 40, 100 and 250 % of the loop’s shallowest depth. V2 hops use constant-product maths on same-block reserves.
             </li>
             <li>Quotes expire after 20 s. The scanner may show a scan up to 90 s old while it refreshes — every row shows its age — and the route panel always re-quotes at the newest block.</li>
           </ul>
@@ -125,7 +126,7 @@ export default function Docs() {
                 <tr><td>Trading fees</td><td>Inside the quote; never subtracted a second time.</td></tr>
                 <tr><td>Flash-liquidity fee</td><td>None on top: the flash swap repays the first pool in the settlement asset, and that pool’s swap fee is the whole borrowing cost.</td></tr>
                 <tr><td>Protocol fee</td><td>0 % by default, and only of a positive result. Fixed per deployment, capped at 10 %; the live value is read from the contract.</td></tr>
-                <tr><td>Gas</td><td><code>eth_estimateGas</code> of the real call in the route panel (a measured model × 1.25 in the scan), times the current gas price.</td></tr>
+                <tr><td>Gas</td><td><code>eth_estimateGas</code> of the real call when you simulate (a per-hop model from fork measurements in the scan), times the current gas price.</td></tr>
                 <tr><td>Gas in the settlement asset</td><td>Only via a credible same-block rate: the deepest depth-verified WETH/USDG pool (≥ 10,000 USDG deep), vetoed if Chainlink ETH/USD ÷ USDG/USD disagrees by more than 2 %. Otherwise gas stays in ETH and the net is flagged incomplete.</td></tr>
                 <tr><td>Estimated result after costs</td><td>Quoted result − protocol fee − gas, when gas could be converted.</td></tr>
                 <tr><td>Required minimum result</td><td><code>max(floor, estimate × accepted share)</code>, enforced on-chain after the protocol fee. The floor defaults to the estimated gas.</td></tr>

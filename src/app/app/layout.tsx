@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: "Bench" };
 
 export default function TerminalLayout({ children }: { children: React.ReactNode }) {
   return (
-    <WalletProvider>
+    <WalletProvider allowDemo={dataSource === "mock"}>
       <TerminalHeader demo={dataSource === "mock"} />
       <main id="main">{children}</main>
       <Footer />

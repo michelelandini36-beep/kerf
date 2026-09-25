@@ -23,6 +23,9 @@ export function Footer() {
             <Link href="/#token">Token</Link>
             <a href={BRAND.explorer} target="_blank" rel="noreferrer">Explorer ↗</a>
             <a href={xUrl()} target="_blank" rel="noreferrer">@{BRAND.xHandle} ↗</a>
+            <a href="https://github.com/michelelandini36-beep/kerf" target="_blank" rel="noreferrer">Source code ↗</a>
+            <Link href="/terms">Terms</Link>
+            <Link href="/privacy">Privacy</Link>
           </nav>
         </div>
         <p className="legal">

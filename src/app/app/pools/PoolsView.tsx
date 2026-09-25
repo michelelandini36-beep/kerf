@@ -144,7 +144,7 @@ export function PoolsView() {
         </div>
         <div className="panel-body" style={{ display: "grid", gap: 12 }}>
           <p className="muted" style={{ margin: 0, fontSize: 14, maxWidth: "60em" }}>
-            These pools pair two verified assets and held in-range liquidity at the census block, so they exist and may set part of an asset’s price. Kerf does not
+            These pools were initialised between two verified assets, so some of them may set part of an asset’s price. Kerf does not
             price or route them: a v4 pool can run a hook that rewrites its fee or swap curve, which would make the V3 formula wrong, and the executor has no v4
             settlement path.
           </p>
@@ -164,7 +164,7 @@ export function PoolsView() {
                   {v4.data.rows.map((r) => (
                     <tr key={r.id}>
                       <td data-l="Pair"><b className="mono">{r.symbols[0]}</b><span className="faint"> / {r.symbols[1]}</span></td>
-                      <td data-l="LP fee" className={`r num ${r.feePips > 100_000 ? "sig" : ""}`}>{(r.feePips / 10_000).toFixed(2)}%</td>
+                      <td data-l="LP fee" className={`r num ${r.feePips !== 0x800000 && r.feePips > 100_000 ? "sig" : ""}`}>{r.feePips === 0x800000 ? "dynamic" : `${(r.feePips / 10_000).toFixed(2)}%`}</td>
                       <td data-l="Tick spacing" className="r num">{r.tickSpacing}</td>
                       <td data-l="Hooks" className="num">{/^0x0+$/.test(r.hooks) ? <span className="faint">none</span> : short(r.hooks)}</td>
                       <td data-l="Created" className="r num">{blockNo(r.createdBlock)}</td>

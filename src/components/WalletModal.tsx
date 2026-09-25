@@ -55,11 +55,18 @@ export function WalletModal() {
               <span className="label">{w.hasInjected ? "detected" : "not found"}</span>
               <small>Any EIP-1193 wallet in this browser. Your account, network and ETH balance are read from it.</small>
             </button>
-            <button type="button" className="opt" onClick={() => w.connect("demo")}>
-              <strong>Demo wallet</strong>
-              <span className="label">no install</span>
-              <small>A funded placeholder account so you can walk through simulation and execution. Nothing is signed.</small>
-            </button>
+            {w.allowDemo && (
+              <button type="button" className="opt" onClick={() => w.connect("demo")}>
+                <strong>Demo wallet</strong>
+                <span className="label">no install</span>
+                <small>A funded placeholder account so you can walk through simulation and execution. Nothing is signed.</small>
+              </button>
+            )}
+            {!w.hasInjected && (
+              <p className="faint" style={{ fontSize: 13, padding: "12px 16px 0", margin: 0 }}>
+                No wallet found in this browser. Install MetaMask or any EIP-1193 wallet, then reload.
+              </p>
+            )}
             {w.error && <p className="err" style={{ padding: "0 16px" }}>{w.error}</p>}
             <p className="faint" style={{ fontSize: 12, padding: "12px 16px", margin: 0 }}>
               Browsing, quoting and simulating never need a wallet. Connect one only to execute.

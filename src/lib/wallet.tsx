@@ -26,6 +26,7 @@ interface WalletState {
   status: "idle" | "connecting" | "connected" | "error";
   error: string | null;
   hasInjected: boolean;
+  allowDemo: boolean;
   pickerOpen: boolean;
   openPicker(): void;
   closePicker(): void;
@@ -37,7 +38,7 @@ interface WalletState {
 const Ctx = createContext<WalletState | null>(null);
 const STORE = "kerf.wallet";
 
-export function WalletProvider({ children }: { children: React.ReactNode }) {
+export function WalletProvider({ children, allowDemo = false }: { children: React.ReactNode; allowDemo?: boolean }) {
   const [address, setAddress] = useState<string | null>(null);
   const [chainId, setChainId] = useState<number | null>(null);
   const [balanceEth, setBalance] = useState<number | null>(null);
@@ -64,6 +65,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setStatus("connecting");
       try {
         if (k === "demo") {
+          if (!allowDemo) throw new Error("The demo wallet is only available on demo data.");
           setAddress(DEMO_WALLET);
           setChainId(BRAND.chainId);
           setBalance(0.0184);
@@ -86,7 +88,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         setError(e instanceof Error ? e.message : "Connection rejected.");
       }
     },
-    [readInjected],
+    [readInjected, allowDemo],
   );
 
   const disconnect = useCallback(() => {
@@ -122,7 +124,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     try {
       saved = localStorage.getItem(STORE);
     } catch {}
-    if (saved === "demo") connect("demo");
+    if (saved === "demo" && allowDemo) connect("demo");
+    else if (saved === "demo") {
+      try {
+        localStorage.removeItem(STORE);
+      } catch {}
+    }
     else if (saved === "injected" && window.ethereum) {
       window.ethereum
         .request({ method: "eth_accounts" })
@@ -132,7 +139,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         })
         .catch(() => {});
     }
-  }, [connect]);
+  }, [connect, allowDemo]);
 
   useEffect(() => {
     const eth = window.ethereum;
@@ -160,6 +167,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       status,
       error,
       hasInjected,
+      allowDemo,
       pickerOpen,
       openPicker: () => setPickerOpen(true),
       closePicker: () => setPickerOpen(false),
@@ -167,7 +175,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       disconnect,
       switchChain,
     }),
-    [address, chainId, balanceEth, kind, status, error, hasInjected, pickerOpen, connect, disconnect, switchChain],
+    [address, chainId, balanceEth, kind, status, error, hasInjected, allowDemo, pickerOpen, connect, disconnect, switchChain],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

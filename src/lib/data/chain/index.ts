@@ -36,12 +36,19 @@ import type {
   Verdict,
 } from "../types";
 import { erc20Abi, executorAbi, factoryAbi, feedAbi, quoterAbi, v2PairAbi, v3PoolAbi } from "./abi";
+import { discoveredPools } from "./discovery";
+import v4Json from "@/config/v4-pools.json";
+
+const V4 = v4Json as unknown as { block: number; generatedAt: string; rows: [string, string, string, number, number, string, number][] };
+// 0x800000 marks a dynamic fee (set by the hook); anything above 10 % is treated as extreme
+const isExtreme = (fee: number) => fee !== 0x800000 && fee > 100_000;
 import { EXECUTOR, EXECUTOR_DEPLOY_BLOCK, RPC_KIND, RPC_URL, SNAPSHOT, TOKENS, USDG, WETH, cached, client, token, type SnapshotPool } from "./client";
 
 const DUST_USD = 25;
 const QUOTE_TTL_MS = 20_000;
 const MAX_QUOTED = 48;
 const MAX_SIZE_USD = 25_000;
+const LADDER = [0.05, 0.15, 0.4, 1, 2.5];
 const SQRT_101_MINUS_1 = Math.sqrt(1.01) - 1;
 const GAS_UNITS = [0, 0, 250_000, 361_162, 472_300];
 const PLACEHOLDER_SENDER = "0x000000000000000000000000000000000000dEaD" as Address;
@@ -139,7 +146,7 @@ async function oracleEthUsdg() {
   }
 }
 
-async function buildState(snaps: SnapshotPool[], blockNumber?: bigint): Promise<MarketState> {
+async function buildState(snaps: SnapshotPool[], blockNumber?: bigint, probe = false): Promise<MarketState> {
   const t0 = Date.now();
   const block = await client.getBlock(blockNumber ? { blockNumber } : { blockTag: "latest" });
   const [raws, gasPriceWei, oracle] = await Promise.all([readPools(snaps, block.number), client.getGasPrice(), oracleEthUsdg()]);
@@ -208,6 +215,8 @@ async function buildState(snaps: SnapshotPool[], blockNumber?: bigint): Promise<
     };
   });
 
+  if (probe) await probePools(pools, block.number, usdOf);
+
   return {
     meta: {
       network: "Robinhood Chain",
@@ -225,7 +234,74 @@ async function buildState(snaps: SnapshotPool[], blockNumber?: bigint): Promise<
   };
 }
 
-const marketState = () => cached("state", 15_000, () => buildState(SNAPSHOT.pools));
+const marketState = () => cached("state", 15_000, async () => buildState(await discoveredPools(), undefined, true));
+
+
+/** QuoterV2 calls in multicall chunks of 20 (the RPC caps eth_call gas), four chunks in flight. */
+async function quoterBatch(jobs: { tokenIn: Address; tokenOut: Address; amountIn: bigint; fee: number }[], blockNumber: bigint) {
+  const chunks: (typeof jobs)[] = [];
+  for (let k = 0; k < jobs.length; k += 20) chunks.push(jobs.slice(k, k + 20));
+  const out: { status: string; result?: unknown }[][] = new Array(chunks.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < chunks.length) {
+      const i = next++;
+      out[i] = (await client.multicall({
+        contracts: chunks[i].map((j) => ({
+          address: REGISTRY.quoterV2 as Address,
+          abi: quoterAbi,
+          functionName: "quoteExactInputSingle",
+          args: [{ tokenIn: j.tokenIn, tokenOut: j.tokenOut, amountIn: j.amountIn, fee: j.fee, sqrtPriceLimitX96: 0n }],
+        })),
+        blockNumber,
+        allowFailure: true,
+      })) as unknown as { status: string; result?: unknown }[];
+    }
+  };
+  await Promise.all([worker(), worker(), worker(), worker()]);
+  return out.flat();
+}
+
+// ------------------------------------------------------------------ depth probes
+
+const PROBE_MAX_USD = 1_000;
+const PROBE_MAX_IMPACT_BPS = 300;
+const probeCache = new Map<string, { at: number; impactBps: number | null }>();
+
+/** A V3 position one tick wide reports large liquidity and fills almost nothing: send each pool a real quote. */
+async function probePools(pools: LivePool[], blockNumber: bigint, usdOf: (a: Asset) => number | null) {
+  const now = Date.now();
+  const todo = pools.filter((p) => p.state === "routable" && p.venue === "v3" && (probeCache.get(p.address)?.at ?? 0) < now - 5 * 60_000);
+  if (todo.length) {
+    const jobs = todo.map((p) => {
+      const qUsd = usdOf(p.quote) ?? 1;
+      const amountQuote = Math.min(PROBE_MAX_USD, p.depthUsd) / qUsd;
+      return { p, amountQuote, job: { tokenIn: p.quote.address, tokenOut: p.base.address, amountIn: toRaw(amountQuote, p.quote.decimals), fee: p.feePips } };
+    });
+    const res = await quoterBatch(jobs.map((j) => j.job), blockNumber);
+    jobs.forEach(({ p, amountQuote }, k) => {
+      const r = res[k];
+      let impactBps: number | null = null;
+      if (r?.status === "success") {
+        const out = human((r.result as readonly [bigint])[0], p.base.decimals);
+        const expected = (amountQuote / p.price) * (1 - p.feePips / 1e6);
+        impactBps = expected > 0 ? Math.max(0, (1 - out / expected) * 10_000) : null;
+      }
+      probeCache.set(p.address, { at: now, impactBps });
+    });
+  }
+  for (const p of pools) {
+    if (p.state !== "routable") continue;
+    if (p.venue === "v2") {
+      p.probeImpactBps = 0;
+      continue;
+    }
+    const c = probeCache.get(p.address);
+    if (!c) continue;
+    p.probeImpactBps = c.impactBps;
+    if (c.impactBps === null || c.impactBps > PROBE_MAX_IMPACT_BPS) p.state = "hollow";
+  }
+}
 
 // ------------------------------------------------------------------ routing
 
@@ -295,22 +371,10 @@ async function quoteLoops(state: MarketState, loops: { path: LivePool[]; settlem
       } else v3Jobs.push({ i, p, tIn, tOut, amt });
     }
     if (!v3Jobs.length) continue;
-    const res: { status: string; result?: unknown }[] = [];
-    for (let k = 0; k < v3Jobs.length; k += 20) {
-      const slice = v3Jobs.slice(k, k + 20);
-      res.push(
-        ...(await client.multicall({
-          contracts: slice.map((j) => ({
-            address: REGISTRY.quoterV2 as Address,
-            abi: quoterAbi,
-            functionName: "quoteExactInputSingle",
-            args: [{ tokenIn: j.tIn.address, tokenOut: j.tOut.address, amountIn: j.amt, fee: j.p.feePips, sqrtPriceLimitX96: 0n }],
-          })),
-          blockNumber,
-          allowFailure: true,
-        })),
-      );
-    }
+    const res = await quoterBatch(
+      v3Jobs.map((j) => ({ tokenIn: j.tIn.address, tokenOut: j.tOut.address, amountIn: j.amt, fee: j.p.feePips })),
+      blockNumber,
+    );
     v3Jobs.forEach((j, k) => {
       const r = res[k];
       if (r.status !== "success") {
@@ -364,11 +428,12 @@ async function quoteLoops(state: MarketState, loops: { path: LivePool[]; settlem
 
 const routeId = (s: Asset, path: Pool[]) => `${s.symbol}:${path.map((p) => p.address.slice(2).toLowerCase()).join("-")}`;
 
-function resolveRoute(id: string) {
+async function resolveRoute(id: string) {
+  const known = await discoveredPools();
   const [sym, rest] = id.split(":");
   const settlement = sym === "WETH" ? WETH : sym === "USDG" ? USDG : null;
   if (!settlement || !rest) return null;
-  const snaps = rest.split("-").map((a) => SNAPSHOT.pools.find((p) => p.address.slice(2).toLowerCase() === a.toLowerCase()));
+  const snaps = rest.split("-").map((a) => known.find((p) => p.address.slice(2).toLowerCase() === a.toLowerCase()));
   if (snaps.length < 2 || snaps.length > 4 || snaps.some((s) => !s)) return null;
   return { settlement, snaps: snaps as SnapshotPool[] };
 }
@@ -534,7 +599,7 @@ export const chainProvider: DataProvider = {
         poolsRoutable: s.pools.filter((p) => p.state === "routable").length,
         v2: s.pools.filter((p) => p.venue === "v2").length,
         v3: s.pools.filter((p) => p.venue === "v3").length,
-        v4Listed: 0,
+        v4Listed: V4.rows.length,
       },
     };
   },
@@ -553,14 +618,21 @@ export const chainProvider: DataProvider = {
         })
         .sort((a, b) => b.edge - a.edge)
         .slice(0, MAX_QUOTED);
-      const loops = ranked.map(({ path }) => ({
-        path,
-        settlement: settle,
-        amountIn: Math.min(MAX_SIZE_USD, 0.4 * Math.min(...path.map((p) => p.depthUsd))) / (settleUsd || 1),
-      }));
+      // Each candidate is quoted at five sizes scaled to its shallowest pool; the best one is kept.
+      const loops = ranked.flatMap(({ path }) => {
+        const shallow = Math.min(...path.map((p) => p.depthUsd));
+        return LADDER.map((f) => ({ path, settlement: settle, amountIn: Math.min(MAX_SIZE_USD, f * shallow) / (settleUsd || 1) }));
+      });
       const quotedAll = await quoteLoops(s, loops, s.blockNumber);
-      const quoted = quotedAll.filter((q): q is RouteQuote => q !== null).sort((a, b) => (b.netResult ?? -1e18) - (a.netResult ?? -1e18));
-      const failed = quotedAll.length - quoted.length;
+      const score = (q: RouteQuote) => q.netResult ?? q.grossResult - 1e9;
+      const best: RouteQuote[] = [];
+      let failed = 0;
+      for (let i = 0; i < ranked.length; i++) {
+        const tries = quotedAll.slice(i * LADDER.length, (i + 1) * LADDER.length).filter((q): q is RouteQuote => q !== null);
+        if (!tries.length) failed++;
+        else best.push(tries.reduce((a, b) => (score(b) > score(a) ? b : a)));
+      }
+      const quoted = best.sort((a, b) => score(b) - score(a));
       const eligible = quoted.filter((q) => q.verdict === "eligible").length;
       const rejection = (["no-profit", "gas-exceeds", "incomplete"] as Verdict[])
         .map((reason) => ({ reason, count: quoted.filter((q) => q.verdict === reason).length + (reason === "incomplete" ? failed : 0) }))
@@ -579,7 +651,7 @@ export const chainProvider: DataProvider = {
           dust: s.pools.filter((p) => p.state === "dust").length,
           hollow: s.pools.filter((p) => p.state === "hollow").length,
           unprobed: s.pools.filter((p) => p.state === "no-usd").length,
-          v4: 0,
+          v4: V4.rows.length,
         },
         gasConversion: s.gasConversion,
         routablePools,
@@ -591,7 +663,7 @@ export const chainProvider: DataProvider = {
   },
 
   async quote(req: QuoteRequest): Promise<QuoteResponse> {
-    const r = resolveRoute(req.routeId);
+    const r = await resolveRoute(req.routeId);
     if (!r) throw new Error("Unknown route: its pools are not in the verified pool set.");
     const ref = await marketState();
     const fresh = await buildState(r.snaps);
@@ -666,7 +738,7 @@ export const chainProvider: DataProvider = {
         adapters: [
           { id: "v2", label: "Uniswap V2 pairs", address: REGISTRY.uniswapV2Factory as Address, status: "supported", detail: "0.30 % fixed fee · flash swap via uniswapV2Call · constant-product quote on same-block reserves" },
           { id: "v3", label: "Uniswap V3 pools", address: REGISTRY.uniswapV3Factory as Address, status: "supported", detail: `Tiers 0.01 / 0.05 / 0.30 / 1 % · flash swap via uniswapV3SwapCallback · QuoterV2 ${REGISTRY.quoterV2}` },
-          { id: "v4", label: "Uniswap v4 pools", address: REGISTRY.v4PoolManager as Address, status: "unsupported", detail: "Never priced or routed: hooks can rewrite fees and curves, and the executor has no v4 settlement path. The v4 census is not connected in this build." },
+          { id: "v4", label: "Uniswap v4 pools", address: REGISTRY.v4PoolManager as Address, status: "unsupported", detail: `${V4.rows.length.toLocaleString("en-US")} pools between verified assets initialised (census block ${V4.block.toLocaleString("en-US")}) · listed, never routed: hooks can rewrite fees and curves, and the executor has no v4 settlement path.` },
         ],
         simulation: { mode: "deployed", label: "eth_call of the exact execute() call against the deployed executor" },
         executor: { address: EXECUTOR, verified: checks.every((c) => c.ok), version: version || "?", protocolFeeBps: feeBps, paused, owner, feeRecipient, checks },
@@ -675,6 +747,7 @@ export const chainProvider: DataProvider = {
           { label: "DEX deployments", source: "Uniswap deployments registry (chain 4663)", verifiedAt: "2026-09-24", method: "factory addresses checked against the executor's immutables" },
           { label: "Stock tokens", source: REGISTRY.assetsApi, verifiedAt: "2026-09-24", method: `${TOKENS.length - 2} tokens · issuer beacon ${REGISTRY.stockBeacon}` },
           { label: "Pool snapshot", source: "factory.getPool / getPair for every token × {USDG, WETH} × tier", verifiedAt: SNAPSHOT.generatedAt.slice(0, 10), method: `${SNAPSHOT.pools.length} pools at block ${SNAPSHOT.block.toLocaleString("en-US")} · npm run snapshot:pools` },
+          { label: "v4 census", source: "PoolManager Initialize events", verifiedAt: V4.generatedAt.slice(0, 10), method: `${V4.rows.length} pools · listed only, never priced · npm run census:v4` },
           { label: "Oracles", source: "Chainlink ETH/USD and USDG/USD", verifiedAt: "2026-09-24", method: "cross-check of the gas conversion rate only" },
         ],
         fetchedAt: new Date().toISOString(),
@@ -740,8 +813,20 @@ export const chainProvider: DataProvider = {
     };
   },
 
-  async v4Pools(): Promise<V4Page> {
-    return { total: 0, hiddenExtreme: 0, page: 1, pages: 1, rows: [], snapshotBlock: SNAPSHOT.block };
+  async v4Pools({ page, includeExtreme }): Promise<V4Page> {
+    const all = V4.rows;
+    const shown = includeExtreme ? all : all.filter((r) => !isExtreme(r[3]));
+    const limit = 25;
+    const pages = Math.max(1, Math.ceil(shown.length / limit));
+    const p = Math.min(Math.max(1, page), pages);
+    return {
+      total: shown.length,
+      hiddenExtreme: all.length - shown.length,
+      page: p,
+      pages,
+      rows: shown.slice((p - 1) * limit, p * limit).map((r) => ({ id: r[0] as `0x${string}`, symbols: [r[1], r[2]], feePips: r[3], tickSpacing: r[4], hooks: r[5] as Address, createdBlock: r[6] })),
+      snapshotBlock: V4.block,
+    };
   },
 };
 

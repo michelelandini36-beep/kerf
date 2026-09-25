@@ -77,9 +77,10 @@ export function RoutePanel({ routeId, initialAmount, initialQuote, onClose }: { 
 
   // First open from a shared link: fetch a quote for the given amount.
   useEffect(() => {
-    if (!initialQuote) {
+    // The scan row can be up to a scan old: always re-quote at the newest block on open.
+    if (!initialQuote || Date.now() > initialQuote.expiresAt - 5_000) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      requote(initialAmount ?? 10);
+      requote(initialAmount ?? initialQuote?.amountIn ?? 10);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [routeId]);

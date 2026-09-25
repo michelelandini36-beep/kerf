@@ -32,7 +32,7 @@ export function TerminalHeader({ demo }: { demo: boolean }) {
             <Logo />
             <nav className="main" aria-label="Terminal">
               {NAV.map((n) => (
-                <Link key={n.href} href={n.href} aria-current={path === n.href ? "page" : undefined}>
+                <Link key={n.href} href={n.href} className="metal metal-sm" aria-current={path === n.href ? "page" : undefined}>
                   {n.label}
                 </Link>
               ))}

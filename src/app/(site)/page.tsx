@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { CapabilityGrid, ExecutorLine, IntegrationsTable, LivePreview, ProductCards, TokenCard } from "@/components/home/Live";
 import { BRAND } from "@/lib/brand";
+import pools from "@/config/pools.json";
+import tokens from "@/config/tokens.json";
 
 const STEPS = [
   {
@@ -78,55 +80,118 @@ const STEPS = [
   },
 ];
 
-function Caliper() {
+const d = (s: number) => ({ "--d": `${s}s` }) as React.CSSProperties;
+const POOL_COUNT = pools.pools.length;
+const STOCK_COUNT = tokens.filter((t) => t.kind === "stock").length;
+
+function Sparkle() {
   return (
-    <figure className="caliper" aria-label="Illustration: the same stock priced in two pools, with the gap measured">
-      <div style={{ display: "flex", justifyContent: "space-between" }}>
-        <span className="label">Instrument · illustration</span>
-        <span className="label">not live data</span>
-      </div>
-      <div className="bars">
-        <div className="bar"><span>Pool A</span><span className="track"><span className="fill" style={{ width: "71%" }} /></span><span style={{ textAlign: "right" }}>231.18</span></div>
-        <div className="gap">kerf 0.42 %</div>
-        <div className="bar"><span>Pool B</span><span className="track"><span className="fill hi" style={{ width: "76%" }} /></span><span style={{ textAlign: "right" }}>232.15</span></div>
-      </div>
-      <div className="ruler" />
-      <nav className="steps" aria-label="Method">
-        {STEPS.map((s) => (
-          <a key={s.id} href={`#${s.id}`}>
-            {s.n}
-            <b>{s.name}</b>
-          </a>
-        ))}
-      </nav>
-    </figure>
+    <svg className="badge-star" width="18" height="20" viewBox="0 0 24 24" fill="#fff" aria-hidden="true">
+      <path d="M12 2.6C12.55 2.6 12.88 3.15 13.08 4.7c.62 4.7 1.52 5.6 6.22 6.22 1.55.2 2.1.53 2.1 1.08s-.55.88-2.1 1.08c-4.7.62-5.6 1.52-6.22 6.22-.2 1.55-.53 2.1-1.08 2.1s-.88-.55-1.08-2.1c-.62-4.7-1.52-5.6-6.22-6.22C3.15 12.88 2.6 12.55 2.6 12s.55-.88 2.1-1.08c4.7-.62 5.6-1.52 6.22-6.22C11.12 3.15 11.45 2.6 12 2.6Z" />
+    </svg>
+  );
+}
+
+function PoolsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <defs>
+        <linearGradient id="pi-a" x1="3" y1="2" x2="14" y2="22" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#fff" stopOpacity="0.38" />
+          <stop offset="1" stopColor="#3a3a3a" stopOpacity="0.62" />
+        </linearGradient>
+        <linearGradient id="pi-b" x1="13" y1="2" x2="24" y2="22" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#3a3a3a" stopOpacity="0.38" />
+          <stop offset="1" stopColor="#fff" stopOpacity="0.62" />
+        </linearGradient>
+      </defs>
+      <rect x="3.4" y="2.6" width="7.2" height="18.8" rx="3.6" fill="url(#pi-a)" />
+      <rect x="13.4" y="2.6" width="7.2" height="18.8" rx="3.6" fill="url(#pi-b)" />
+      <rect x="9.2" y="10.9" width="5.6" height="2.2" rx="1.1" fill="#4a4a4a" />
+    </svg>
+  );
+}
+
+function TileIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="2.4" y="2.4" width="19.2" height="19.2" rx="6.2" fill="#fff" />
+      <path d="M7.5 15.5l3-3 2 2 4-5" fill="none" stroke="#111" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function FlashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="9.6" fill="#2b2b2b" />
+      <path d="M13.2 4.8L7.6 13.1h3.9l-.8 6.1 5.7-8.4h-4z" fill="#f4f4f4" />
+    </svg>
   );
 }
 
 export default function Home() {
   return (
     <>
-      <section className="hero" aria-labelledby="hero-title">
-        <div className="wrap hero-grid">
-          <div>
-            <span className="label">Spread tooling for tokenized stocks · {BRAND.chainName}</span>
-            <h1 id="hero-title">
-              Measure the gap.
-              <br />
-              <em>Cut it clean.</em>
-            </h1>
-            <p className="lede">
-              The same stock trades at slightly different prices in different pools. Kerf finds those gaps, shows you every cost that eats them,
-              rehearses the exact call, and lets you execute the ones that still pay — straight from your wallet.
-            </p>
-            <div className="actions">
-              <Link href="/app" className="btn btn-signal">Open the bench →</Link>
-              <a href="#method" className="btn">See the method</a>
-            </div>
-            <p className="foot label">Chain {BRAND.chainId} · Uniswap V2 / V3 · browse without a wallet</p>
-          </div>
-          <Caliper />
+      <section className="vhero" aria-labelledby="hero-title">
+        <div className="hero-photo" aria-hidden="true">
+          <video autoPlay muted loop playsInline preload="auto" poster="/media/hero-poster.jpg">
+            <source src="/media/hero-mobile.mp4" type="video/mp4" media="(max-width: 900px)" />
+            <source src="/media/hero.mp4" type="video/mp4" />
+          </video>
         </div>
+        <div className="vhero-main" id="top">
+          <div className="hero-copy">
+            <span className="badge appear appear--pop" style={d(0.22)}>
+              <Sparkle />
+              Tokenized-equity arbitrage · {BRAND.chainName}
+            </span>
+            <h1 id="hero-title">
+              <span className="headline-line">
+                <span className="appear appear--mask" style={d(0.42)}>
+                  Measure the <em>gap</em>.
+                </span>
+              </span>
+              <span className="headline-line">
+                <span className="appear appear--mask" style={d(0.62)}>
+                  Cut it clean.
+                </span>
+              </span>
+            </h1>
+            <p className="lede appear appear--soft" style={{ ...d(0.82), animationDuration: "1.25s" }}>
+              Kerf reads every verified pool at one block, prices each loop with every cost on its own line, rehearses the exact call — and executes the ones
+              that still pay, straight from your wallet.
+            </p>
+            <div className="hero-actions">
+              <Link href="/app" className="btn btn-solid appear appear--btn" style={d(0.96)}>
+                Open the bench
+              </Link>
+              <a href="#method" className="btn btn-ghost appear appear--side" style={d(1.1)}>
+                See the method
+              </a>
+            </div>
+          </div>
+        </div>
+        <footer className="stats" aria-label="Kerf in numbers">
+          <span className="stat appear appear--stat" style={d(1.12)}>
+            <PoolsIcon />
+            <span>
+              <b>{POOL_COUNT}</b> canonical Uniswap pools, read at one block
+            </span>
+          </span>
+          <span className="stat appear appear--stat" style={d(1.28)}>
+            <TileIcon />
+            <span>
+              <b>{STOCK_COUNT}</b> issuer-verified tokenized stocks
+            </span>
+          </span>
+          <span className="stat appear appear--stat" style={d(1.44)}>
+            <FlashIcon />
+            <span>
+              <b>0</b> capital needed — every loop is flash-funded
+            </span>
+          </span>
+        </footer>
       </section>
 
       <section className="sec" id="method" aria-labelledby="method-title">
@@ -134,7 +199,7 @@ export default function Home() {
           <div className="sec-head">
             <div>
               <span className="label">Method</span>
-              <h2 id="method-title">Four moves. Nothing hidden between them.</h2>
+              <h2 id="method-title">Four moves. <em>Nothing</em> hidden between them.</h2>
             </div>
             <p className="intro">Each step hands the next one a number it can trace back to a chain read at a stated block.</p>
           </div>
@@ -177,7 +242,7 @@ export default function Home() {
           <div className="sec-head">
             <div>
               <span className="label">Live preview</span>
-              <h2 id="preview-title">The bench, reading the chain as you scroll.</h2>
+              <h2 id="preview-title">The bench, reading the chain <em>as you scroll</em>.</h2>
             </div>
             <div className="intro" style={{ display: "grid", gap: 12 }}>
               <p style={{ margin: 0 }}>Every figure here comes from the same reads the bench makes. If a read fails, the panel says so and leaves the space empty.</p>
@@ -197,7 +262,7 @@ export default function Home() {
           <div className="sec-head">
             <div>
               <span className="label">Product</span>
-              <h2 id="product-title">Three instruments, each honest about what it knows.</h2>
+              <h2 id="product-title">Three instruments, each <em>honest</em> about what it knows.</h2>
             </div>
             <p className="intro">Browse, quote and rehearse with no wallet at all. Connect one only when a route is eligible and you choose to cut.</p>
           </div>
@@ -210,7 +275,7 @@ export default function Home() {
           <div className="sec-head">
             <div>
               <span className="label">Transparency</span>
-              <h2 id="tr-title">What is wired up, and what is not.</h2>
+              <h2 id="tr-title">What is wired up, and what is <em>not</em>.</h2>
             </div>
             <p className="intro">Every state below is read live or taken from the verified registry, with its source. Nothing is called available because it is on a roadmap.</p>
           </div>
@@ -246,7 +311,7 @@ export default function Home() {
       <section className="sec" aria-labelledby="cta-title" style={{ borderBottom: 0 }}>
         <div className="wrap" style={{ display: "grid", gap: 20 }}>
           <div className="ruler" />
-          <h2 id="cta-title">Measure the gap. Cut it clean.</h2>
+          <h2 id="cta-title">Measure the <em>gap</em>. Cut it clean.</h2>
           <p className="intro">Open the bench to scan verified pools and rehearse routes. You will not need a wallet until you execute.</p>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <Link href="/app" className="btn btn-signal">Open the bench →</Link>

@@ -9,7 +9,9 @@ export function Footer() {
         <div className="top">
           <div>
             <Logo />
-            <p className="tagline">{BRAND.tagline}</p>
+            <p className="tagline">
+              Measure the <em>gap</em>. Cut it clean.
+            </p>
           </div>
           <nav aria-label="Footer">
             <Link href="/app">Scanner</Link>

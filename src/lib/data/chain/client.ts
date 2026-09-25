@@ -1,5 +1,5 @@
 import "server-only";
-import { createPublicClient, defineChain, http, type Address } from "viem";
+import { createPublicClient, defineChain, fallback, http, type Address } from "viem";
 import { REGISTRY } from "@/config/registry";
 import tokensJson from "@/config/tokens.json";
 import poolsJson from "@/config/pools.json";
@@ -19,7 +19,16 @@ export const robinhood = defineChain({
   contracts: { multicall3: { address: REGISTRY.multicall3 as Address } },
 });
 
-export const client = createPublicClient({ chain: robinhood, transport: http(RPC_URL, { retryCount: 3, timeout: 20_000 }) });
+// If the provider fails (quota, outage, -32003…), fall through to the public RPC.
+// Only a revert is final: it is the chain's answer, not the endpoint's.
+const transport =
+  RPC_KIND === "provider"
+    ? fallback([http(RPC_URL, { retryCount: 1, timeout: 15_000 }), http(REGISTRY.publicRpc, { retryCount: 3, timeout: 20_000 })], {
+        shouldThrow: (e) => /revert/i.test(String((e as Error)?.message ?? "")),
+      })
+    : http(RPC_URL, { retryCount: 3, timeout: 20_000 });
+
+export const client = createPublicClient({ chain: robinhood, transport });
 
 export const EXECUTOR = (process.env.NEXT_PUBLIC_EXECUTOR_ADDRESS || REGISTRY.kerfExecutor) as Address;
 export const EXECUTOR_DEPLOY_BLOCK = BigInt(process.env.KERF_EXECUTOR_DEPLOY_BLOCK || 71_645_512);

@@ -730,7 +730,7 @@ export const chainProvider: DataProvider = {
         { label: "Chain id is 4663", ok: chainId === REGISTRY.chainId, detail: String(chainId) },
       ];
       return {
-        network: { name: "Robinhood Chain", chainId, explorer: REGISTRY.explorer, rpcHost: new URL(RPC_URL).host, rpcKind: RPC_KIND },
+        network: { name: "Robinhood Chain", chainId, explorer: REGISTRY.explorer, rpcHost: RPC_KIND === "public" ? new URL(RPC_URL).host : new URL(RPC_URL).host.split(".").slice(-3).join("."), rpcKind: RPC_KIND },
         head: { block: Number(latest.number), timestamp: Number(latest.timestamp), latencyMs: latency },
         safe: { block: Number(safe.number), timestamp: Number(safe.timestamp) },
         finalized: { block: Number(fin.number), timestamp: Number(fin.timestamp) },
